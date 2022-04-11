@@ -1,0 +1,39 @@
+FROM topaztechnology/sbt-java11-build:11.0.13_1 AS build
+
+# Make source tree visible
+COPY . /build
+
+RUN \
+  cd /build && \
+  sbt stage
+
+
+FROM ubuntu:20.04
+MAINTAINER Topaz Tech Ltd <info@topaz.technology>
+
+ARG AZUL_VERSION=11.52.13
+ARG JAVA_VERSION=11.0.13
+
+ENV SERVER_HOME /opt/server
+ENV IMAGE "Ubuntu OpenBLAS"
+
+RUN \
+  mkdir -p ${SERVER_HOME}/lib && \
+  mkdir -p ${SERVER_HOME}/bin
+
+RUN \
+  apt update && apt upgrade -y && \
+  apt install -y openjdk-11-jre
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+
+# RUN apt install -y liblapack3 libblas3 // this doesn't perform well
+RUN apt install -y libatlas3-base libopenblas-base && \
+  update-alternatives --install /usr/lib/x86_64-linux-gnu/libblas.so libblas.so /usr/lib/x86_64-linux-gnu/libblas.so.3 1000 && \
+  update-alternatives --install /usr/lib/x86_64-linux-gnu/liblapack.so liblapack.so /usr/lib/x86_64-linux-gnu/liblapack.so.3 1000
+
+COPY --from=build /build/target/universal/stage/lib/* ${SERVER_HOME}/lib/
+
+COPY docker/entrypoint.sh ${SERVER_HOME}/bin/
+
+CMD [ "/opt/server/bin/entrypoint.sh" ]
