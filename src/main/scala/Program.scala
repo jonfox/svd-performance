@@ -1,5 +1,5 @@
 import com.github.fommil.netlib.{LAPACK => FLAPACK}
-import dev.ludovic.netlib.{LAPACK => LLAPACK}
+import dev.ludovic.netlib.lapack.{LAPACK => LLAPACK}
 import no.uib.cipr.matrix.{DenseMatrix, SVD => FSVD}
 import org.apache.commons.math3.linear.{Array2DRowRealMatrix, SingularValueDecomposition}
 import org.apache.commons.math3.random.MersenneTwister
@@ -20,8 +20,12 @@ object Program extends App {
     println(s"Finished: $msg, $totalMillis ms")
   }
 
-  val N = 2200
-  val NL = N.toLong
+  val m = 2000
+  val n = 2000
+  val p = math.min(m, n)
+  val q = math.max(m, n)
+  val ml = m.toLong
+  val nl = n.toLong
 
   println("Luhenry netlib-java")
   locally {
@@ -30,28 +34,28 @@ object Program extends App {
 
     val rng = new MersenneTwister(1234)
     // Col major
-    val M = Array.fill(N * N) {
+    val A = Array.fill(m * n) {
       rng.nextDouble()
     }
-    val S = new Array[Double](N)
-    val U = new Array[Double](N * N)
-    val Vt = new Array[Double](N * N)
+    val S = new Array[Double](p)
+    val U = new Array[Double](m * m)
+    val Vt = new Array[Double](n * n)
 
-    val iwork = new Array[Int](8 * N)
+    val iwork = new Array[Int](8 * p)
     val worksize = new Array[Double](1)
 
     val info = new intW(0)
-    lapack.dgesdd("A", N, N, new Array[Double](0), N, new Array[Double](0), new Array[Double](0),
-      N, new Array[Double](0), N, worksize, -1, iwork, info)
+    lapack.dgesdd("A", m, n, new Array[Double](0), m, new Array[Double](0), new Array[Double](0),
+      m, new Array[Double](0), n, worksize, -1, iwork, info)
     val lwork = if (info.`val` != 0)
-      7 * N * N + 4 * N
+      7 * q * q + 4 * q
     else
       worksize(0).toInt
 
     val work = new Array[Double](lwork)
 
-    val svd = time(s"Luhenry SVD with $N") {
-      lapack.dgesdd("A", N, N, M, N, S, U, N, Vt, N, work, work.length, iwork, info)
+    val svd = time(s"Luhenry SVD with $m, $n") {
+      lapack.dgesdd("A", m, n, A, m, S, U, m, Vt, n, work, work.length, iwork, info)
     }
     if (info.`val` > 0)
       println("Did not converge after max iterations")
@@ -64,14 +68,14 @@ object Program extends App {
     val lapack = FLAPACK.getInstance()
     println(s"Using LAPACK instance: ${lapack.getClass.getSimpleName}")
 
-    val M = new DenseMatrix(N, N)
+    val A = new DenseMatrix(m, n)
     val rng = new MersenneTwister(1234)
-    for (i <- 0 until N)
-      for (j <- 0 until N)
-        M.set(i, j, rng.nextDouble())
+    for (i <- 0 until m)
+      for (j <- 0 until n)
+        A.set(i, j, rng.nextDouble())
 
-    val svd = time(s"Fommil SVD with $N") {
-      FSVD.factorize(M)
+    val svd = time(s"Fommil SVD with $m, $n") {
+      FSVD.factorize(A)
     }
   }
 
@@ -79,23 +83,23 @@ object Program extends App {
   locally {
     println(OjAlgoUtils.ENVIRONMENT)
     val U = Uniform.standard()
-    val M = Primitive64Matrix.FACTORY.makeFilled(NL, NL, U)
-    val svd = time(s"ojalgo SVD with $NL") {
+    val A = Primitive64Matrix.FACTORY.makeFilled(ml, nl, U)
+    val svd = time(s"ojalgo SVD with $ml, $nl") {
       val decomp = SingularValue.PRIMITIVE.make()
-      decomp.decompose(M)
+      decomp.decompose(A)
     }
   }
 
   println("\nApache Common Math")
   locally {
-    val M = new Array2DRowRealMatrix(N.toInt, N.toInt)
+    val A = new Array2DRowRealMatrix(m, n)
     val rng = new MersenneTwister(1234)
-    for (i <- 0 until N)
-      for (j <- 0 until N)
-        M.setEntry(i, j, rng.nextDouble())
+    for (i <- 0 until m)
+      for (j <- 0 until n)
+        A.setEntry(i, j, rng.nextDouble())
 
-    val svd = time(s"Apache SVD with $N") {
-      new SingularValueDecomposition(M)
+    val svd = time(s"Apache SVD with $m, $n") {
+      new SingularValueDecomposition(A)
     }
   }
 }

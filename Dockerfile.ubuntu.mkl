@@ -1,4 +1,4 @@
-FROM topaztechnology/sbt-java11-build:11.0.13_1 AS build
+FROM topaztechnology/sbt-java17-build:17.0.4 AS build
 
 # Make source tree visible
 COPY . /build
@@ -8,14 +8,10 @@ RUN \
   sbt stage
 
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 MAINTAINER Topaz Tech Ltd <info@topaz.technology>
 
-ARG AZUL_VERSION=11.52.13
-ARG JAVA_VERSION=11.0.13
-
 ENV SERVER_HOME /opt/server
-ENV IMAGE "Ubuntu MKL"
 
 RUN \
   mkdir -p ${SERVER_HOME}/lib && \
@@ -23,9 +19,9 @@ RUN \
 
 RUN \
   apt update && apt upgrade -y && \
-  apt install -y openjdk-11-jre
+  apt install -y openjdk-17-jre
 
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+ENV JAVA_HOME /usr/lib/jvm/java-17-openjdk-amd64
 
 RUN apt install -y libmkl-rt
 
