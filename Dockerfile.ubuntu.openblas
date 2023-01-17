@@ -1,6 +1,57 @@
-FROM topaztechnology/openblas-ubuntu:0.3.21 AS blas
+FROM ubuntu:22.04 AS blas
 
-FROM topaztechnology/sbt-java17-build:17.0.4 AS build
+ARG OPENBLAS_VERSION=0.3.21
+
+ARG TARGETPLATFORM=linux/amd64
+
+SHELL [ "/bin/bash", "-o", "pipefail", "-c" ]
+
+RUN \
+  apt update && \
+  apt -qy upgrade && \
+  apt -qy install libgfortran-11-dev && \
+  apt -qy install build-essential perl gfortran curl && \
+  mkdir -p /tmp/build && \
+  curl -Ls "https://github.com/xianyi/OpenBLAS/releases/download/v${OPENBLAS_VERSION}/OpenBLAS-${OPENBLAS_VERSION}.tar.gz" | tar zx --strip-components=1 -C /tmp/build && \
+  bash -c $'\n\
+  case "${TARGETPLATFORM}" in \n\
+    "linux/amd64") \n\
+      TARGET=NEHALEM \n\
+      ;; \n\
+    "linux/arm64") \n\
+      TARGET=ARMV8 \n\
+      ;; \n\
+  esac \n\
+  \n\
+  OPENBLAS_FLAGS="USE_OPENMP=0 NO_LAPACK=0 MAJOR_VERSION=3 NO_AFFINITY=1 DYNAMIC_ARCH=1 USE_HEAP_ALLOC=1 TARGET=${TARGET}" \n\
+  OPENBLAS_CFLAGS=-O2 \n\
+  \n\
+  make -C /tmp/build "${OPENBLAS_FLAGS}" PREFIX=/opt/openblas CFLAGS="${OPENBLAS_CFLAGS}" -j $(nproc) \n\
+  make -C /tmp/build "${OPENBLAS_FLAGS}" PREFIX=/opt/openblas install \n\
+  ' && \
+  apt -qy purge build-essential gfortran curl && \
+  apt clean && \
+  apt -qy autoremove && \
+  rm -rf /tmp/build
+
+
+FROM ubuntu:22.04 AS build
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Java
+RUN \
+  apt-get update && \
+  apt-get -qy upgrade && \
+  apt-get -qy install curl zip gnupg nano bash jq git build-essential perl ruby xsltproc openjdk-17-jdk && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+SHELL ["/bin/bash", "-ic"]
+
+RUN \
+  curl -Ls https://git.io/sbt > /usr/bin/sbt && \
+  chmod 0755 /usr/bin/sbt
 
 # Make source tree visible
 COPY . /build
@@ -11,7 +62,6 @@ RUN \
 
 
 FROM ubuntu:22.04
-MAINTAINER Topaz Tech Ltd <info@topaz.technology>
 
 ENV SERVER_HOME /opt/server
 
@@ -23,11 +73,11 @@ RUN \
   apt update && apt upgrade -y && \
   apt install -y openjdk-17-jre
 
-ENV JAVA_HOME /usr/lib/jvm/java-17-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 COPY --from=blas /opt/openblas/ /usr/local/
-
 RUN \
+  apt -qy install libgfortran-11-dev && \
   update-alternatives --install /usr/lib/x86_64-linux-gnu/libblas.so libblas.so-x86_64-linux-gnu /usr/local/lib/libopenblas.so 1000 && \
   update-alternatives --install /usr/lib/x86_64-linux-gnu/libblas.so.3 libblas.so.3-x86_64-linux-gnu /usr/local/lib/libopenblas.so 1000 && \
   update-alternatives --install /usr/lib/x86_64-linux-gnu/liblapack.so liblapack.so-x86_64-linux-gnu /usr/local/lib/libopenblas.so 1000 && \

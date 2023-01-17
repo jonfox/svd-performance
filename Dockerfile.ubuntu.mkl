@@ -1,4 +1,20 @@
-FROM topaztechnology/sbt-java17-build:17.0.4 AS build
+FROM ubuntu:22.04 AS build
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Java
+RUN \
+  apt-get update && \
+  apt-get -qy upgrade && \
+  apt-get -qy install curl zip gnupg nano bash jq git build-essential perl ruby xsltproc openjdk-17-jdk && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+SHELL ["/bin/bash", "-ic"]
+
+RUN \
+  curl -Ls https://git.io/sbt > /usr/bin/sbt && \
+  chmod 0755 /usr/bin/sbt
 
 # Make source tree visible
 COPY . /build
@@ -9,7 +25,6 @@ RUN \
 
 
 FROM ubuntu:22.04
-MAINTAINER Topaz Tech Ltd <info@topaz.technology>
 
 ENV SERVER_HOME /opt/server
 
